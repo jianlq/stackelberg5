@@ -85,6 +85,7 @@ class evoluDiv{
 			for(int i = 0; i < G->m; i++)
 				G->Link[i]->dist = x[i];
 
+			// relaxation algorithm
 			if(!TE()){
 				ability = INF;
 				return ;
@@ -95,25 +96,29 @@ class evoluDiv{
 				(*Overlay[i]).getDelay(G->get_To_overlay(i));
 			}
 
-			//////	relaxation		
+			//////	relaxation	for calculate NE	
+			vector<vector<demand>> updatereq;
 			for(int i = 0;i < LOOP;i++){
 				beta =(double)1/(i+1);
-				vector<vector<demand>> updatereq;
+				updatereq.clear();
 				for(int i = 0; i < Overlay.size(); i++){
 					Overlay[i]->LP();
 					updatereq.push_back( Overlay[i]->getTrafficMatrix());
 				}
 				updatereq.push_back((*dem)[(*dem).size()-1]);//background traffic
 				G->CalculateDelay(&updatereq);
-
 				for(int i = 0; i < Overlay.size(); i++){
 					Overlay[i]->updateDelay(G->get_To_overlay(i));
 				}
 			}
-			double util = 0;
-			for(int i = 0; i < G->m; i++)
-				util = max(util, (double)G->Link[i]->use/G->Link[i]->capacity);
+
+			// util
+			double util = G->CalculateMLU(&updatereq);
 			ability += util;
+
+			cout << " mlu: \t" << util <<endl;
+			cout << "overlay0:"<< Overlay[0]->getCost() << " \toverlay1:" << Overlay[1]->getCost() << " \toverlay2:" << Overlay[2]->getCost()<<endl;
+			
 			G->clearMark();
 		}
 

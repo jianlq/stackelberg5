@@ -15,9 +15,9 @@ double LBdictor(CGraph *G,vector<demand> & req){
 	for(int d = 0; d < num; d++)
 		x[d] = IloIntVarArray(env, G->m, 0, 1); 	
 
-	 //优化目标
+	//优化目标
 	IloNumVar z(env, 0, 1);	
-    model.add(IloMinimize(env, z));
+	model.add(IloMinimize(env, z));
 
 	// 对每个点进行流量守恒约束  
 	for(int d = 0; d < num; d++){
@@ -128,10 +128,10 @@ double ORdictor(CGraph *G,vector<demand>& req,int start,int end){
 
 		ORsolver.setOut(env.getNullStream());
 		double obj = INF;
-		
+
 		if(ORsolver.solve()){
 			obj = ORsolver.getObjValue();
-		//	cout << obj <<endl;
+			//	cout << obj <<endl;
 			// mlu
 			double util = 0;
 			for(int i = 0; i < G->m; i++){  
@@ -161,6 +161,147 @@ double ORdictor(CGraph *G,vector<demand>& req,int start,int end){
 		x.end();
 		env.end();
 		return obj;
+}
+
+void TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
+{
+	int x_num = 0;
+	for(int i = 0;i < overlay_num;i++)
+		x_num += overlay[i].size(); /////x_num表示总的overlay的需求个数
+
+	IloEnv env;
+	IloModel model(env);
+	IloCplex solver(model);
+
+	//变量
+	IloArray<IloNumVarArray> x(env, x_num); ////x代表overlay的分配
+	for(int i = 0; i < x_num; i++)
+		x[i] = IloNumVarArray(env, G->m, 0, 1);
+
+	int background_num = background.size();
+	IloArray<IloNumVarArray> y(env, background_num); ////y代表背景流的分配
+	for(int i = 0; i < background_num; i++)
+		y[i] = IloNumVarArray(env, G->m, 0, 1);
+
+
+	IloNumVar z(env,0,1);
+	model.add(IloMinimize(env, z));
+
+	//边的容量限制
+	for(int i = 0;i < G->m; i++)
+	{
+		IloExpr constraint(env);
+		for(int j = 0;j < background_num;j++)
+			constraint += y[j][i] * background[j].flow;
+
+		int count = 0;
+		for(int j = 0;j < overlay_num;j++)
+		{
+			for(int k = 0; k < overlay[j].size(); k++)
+			{
+				constraint += x[count][i] * overlay[j][k].flow;
+				count++;
+			}
+		}
+		model.add(constraint <= z * G->Link[i]->capacity);
+	}
+	//点的背景流量平衡
+	for(int d = 0; d < background_num; d++){
+		for(int i = 0; i < G->n; i++){    // n为顶点数
+			IloExpr constraint(env);
+			for(unsigned int k = 0; k < G->adjL[i].size(); k++) // 出度边
+				constraint += x[d][G->adjL[i][k]->id];
+			for(unsigned int k = 0; k < G->adjRL[i].size(); k++) // 入度边
+				constraint -= x[d][G->adjRL[i][k]->id];
+			// 出 - 入
+			if(i == background[d].org)
+				model.add(constraint == 1);
+			else if(i == background[d].des)
+				model.add(constraint == -1);
+			else
+				model.add(constraint == 0);
+		}
+	}
+
+	//点的overlay流量平衡
+	int count = 0;
+	for(int i = 0;i < overlay_num;i++)
+	{
+		for(int j = 0;j < overlay[i].size();j++)
+		{
+			for(int k = 0;k < G->n; k++) // nodes
+			{
+				IloExpr constraint(env);
+				for(unsigned int l = 0; l < G->adjL[k].size(); l++) // 出度边 link
+					constraint += x[count][G->adjL[k][l]->id];
+				for(unsigned int l = 0; l < G->adjRL[k].size(); l++) // 入度边 link
+					constraint -= x[count][G->adjRL[k][l]->id];
+				if(k == overlay[i][j].org)
+					model.add(constraint == 1);
+				else if(k == overlay[i][j].des)
+					model.add(constraint == -1);
+				else
+					model.add(constraint == 0);
+			}
+			count++;
+		}
+	}
+
+	solver.setOut(env.getNullStream());
+	if(solver.solve()){
+		for(int i = 0;i < background_num;i++)
+			for(int j = 0;j < G->m;j++)
+				G->background_mark[i][j] = solver.getValue(y[i][j]);
+
+		cout<<"obj value:"<<solver.getObjValue()<<endl;
+
+		count = 0;
+		for(int i = 0;i< overlay_num;i++)
+		{
+			for(int j = 0;j < overlay[i].size();j++)
+			{	
+				for(int k = 0; k < G->m ; k++)
+					G->overlay_mark[i][j][k] = solver.getValue(x[count][k]);
+				count++;
+			}
+		}
+
+		//////////更新delay
+		for(int i = 0;i < G->m; i++)
+		{
+			double flow = 0;
+
+			for(int j = 0;j < background_num;j++)
+				flow += G->background_mark[j][i] *background[j].flow;
+
+			for(int j = 0;j < overlay_num;j++)
+			{
+				for(int k = 0; k < overlay[j].size(); k++)
+				{
+					flow += G->overlay_mark[j][k][i] * overlay[j][k].flow;
+				}
+			}
+			//G->Link[i]->latency =1.0/(G->Link[i]->capacity- flow); // 1/(C-x)
+			G->Link[i]->latency = linearCal(flow, G->Link[i]->capacity); //linear fitting
+		}
+		//////////////更新 to_overlay
+		for(int i = 0;i < overlay_num;i++)
+		{
+			for(int j = 0;j < overlay[i].size();j++)
+			{
+				float sum = 0;
+				for(int k = 0; k < G->m; k++)
+					sum += G->overlay_mark[i][j][k] * G->Link[k]->latency;
+				G->to_overlay[i][j] = sum ;
+			}
+
+		}
+	}
+	else{
+		cout<<"TE unfeasible"<<endl;
+	}
+	env.end();
+
 }
 
 #endif

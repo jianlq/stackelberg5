@@ -17,8 +17,6 @@
 #include<list>
 #include<map>
 #include<crtdbg.h>
-#include <algorithm>
-#include <iostream>
 #include <istream>
 #include <iterator>
 #include <ostream>

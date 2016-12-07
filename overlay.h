@@ -1,3 +1,4 @@
+﻿#ifndef OVERLAY
 #define OVERLAY
 #include"Common.h"
 #include <ilcplex/ilocplex.h>
@@ -16,10 +17,12 @@ class overlay
 	int m;
 	int reqnum;
 	double cost_value;
+	vector<int> mapping; //点映射到下层
 	vector<vector<int>> adj_mtx;
 	vector<double> delay;
 public:
 	vector<demand> req;
+	vector<vector<double>> flow_mark;//用来标记每个流怎么分
 	vector<demand> edge_flow;
 
 	public:
@@ -137,6 +140,7 @@ public:
 		for(int i = 0; i < reqnum; i++)
 			x[i] = IloIntVarArray(env, m, 0, 1);
 			
+		//点的流量平衡
 		for(int i = 0;i < reqnum;i++){
 			for(int j = 0;j < n;j++)
 			{
@@ -166,11 +170,9 @@ public:
 			for(int j = 0;j < reqnum;j++)
 				constraint += x[j][i];                //// Linear fitting
 				//constraint += x[j][i] * req[j].flow; //// x1/(C-x)   1/C-x :delay[i]
-
 			cost += delay[i] * constraint; 
 		}
 		mod.add(IloMinimize(env, cost));
-
 
 		solver.setOut(env.getNullStream());
 		double obj = INF;
@@ -211,7 +213,7 @@ public:
 			}
 		}
 		else{
-			cout << "overlay "<<No<<" unfeasible"<<endl;
+			cout << "overlay "<< No <<" unfeasible"<<endl;
 		}
 		env.end();
 		return obj;

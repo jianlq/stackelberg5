@@ -221,10 +221,12 @@ public:
 	}	
 	void initMark(int bgnum,vector<int> &overlayEdgenum){
 
+		background_mark.clear();
 		background_mark.resize(bgnum);
 		for(int i = 0; i < bgnum; i++)
 			background_mark[i].resize(this->m,0);
 
+		overlay_mark.clear();
 		overlay_mark.resize(overlay_num);
 		for(int j = 0;j < overlay_num;j++){
 			overlay_mark[j].resize(overlayEdgenum[j]);
@@ -234,6 +236,7 @@ public:
 		}
 
 		//overlay delay
+		to_overlay.clear();
 		to_overlay.resize(overlay_num);
 		for(int k = 0; k < overlayEdgenum.size(); k++){
 			to_overlay[k].resize(overlayEdgenum[k],0.0);
@@ -259,7 +262,7 @@ public:
 
 	void CalculateDelay(vector<vector<demand>>*req )
 	{		
-		///////////////更新delay和flow
+		///////////////更新delay
 		int NO = req->size();//OR1,OR2,OR3,background
 		for(int i = 0;i < this->m;i++){ //Link
 			double flow = 0;
@@ -289,6 +292,28 @@ public:
 			}
 		}
 	}
+
+	double CalculateMLU(vector<vector<demand>>*req ){
+		double util = 0;
+		int NO = req->size();//OR1,OR2,OR3,background
+		for(int i = 0;i < this->m;i++){ //Link
+			double flow = 0;
+			for(int d = 0;d < (*req)[NO-1].size();d++){ //background traffic,dth demand
+				flow += background_mark[d][i] * (*req)[NO-1][d].flow;
+			}
+
+			for(int j = 0;j < overlay_num;j++) //overlay num
+			{
+				for(int k = 0; k < (*req)[j].size(); k++) // each overlay traffic, kth demand
+				{
+					flow += overlay_mark[j][k][i] * (*req)[j][k].flow;
+				}
+			}
+			util =max(util,flow/Link[i]->capacity);
+		}
+		return util;
+	}
+
 };
 
 
@@ -309,7 +334,7 @@ CGraph::CGraph(char* inputFile)
 		vert.insert(a);
 		vert.insert(b);
 		c = rand()%MAXWEIGHT;
-		CEdge *e=new CEdge(i,a,b,c,d+MINCAPACITY);
+		CEdge *e=new CEdge(i,a,b,c,d+rand()%MINCAPACITY);
 		Link.push_back(e);
 		adjL[a].push_back(e); //出度边
 		adjRL[b].push_back(e); //入度边
