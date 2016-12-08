@@ -71,7 +71,7 @@ public:
 
 		for(int i = 0;i < m;i++)
 		{
-			delay.push_back(0.01);
+			delay.push_back(0.1);
 			int tail,head;
 			fin>>tail>>head;
 			adj_mtx[tail][head] = i;//// tail -----> head
@@ -178,6 +178,7 @@ public:
 		double obj = INF;
 		if(solver.solve()){
 			obj = cost_value = solver.getObjValue();
+			cout <<"overlay "<<No<<" cost "<<obj<<endl;
 
 			if(flow_mark.size() == 0)
 			{
@@ -256,7 +257,10 @@ public:
 		for(int i = 0;i < delay.size();i++)
 			cout<<delay[i]<<endl;
 	}
-
+	void clearDelay(){
+		for(int i = 0;i < delay.size();i++)
+			delay[i] = 0.1;
+	}
 };
 
 #endif

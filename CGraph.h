@@ -298,6 +298,7 @@ public:
 		int NO = req->size();//OR1,OR2,OR3,background
 		for(int i = 0;i < this->m;i++){ //Link
 			double flow = 0;
+		
 			for(int d = 0;d < (*req)[NO-1].size();d++){ //background traffic,dth demand
 				flow += background_mark[d][i] * (*req)[NO-1][d].flow;
 			}
@@ -333,8 +334,8 @@ CGraph::CGraph(char* inputFile)
 		file >> a >> b >> c >> d;
 		vert.insert(a);
 		vert.insert(b);
-		c = rand()%MAXWEIGHT;
-		CEdge *e=new CEdge(i,a,b,c,d+rand()%MINCAPACITY);
+		c = rand()%MAXWEIGHT+2;
+		CEdge *e=new CEdge(i,a,b,c,d+MINCAPACITY);
 		Link.push_back(e);
 		adjL[a].push_back(e); //出度边
 		adjRL[b].push_back(e); //入度边

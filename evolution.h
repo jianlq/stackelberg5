@@ -154,8 +154,8 @@ bool evoluCmp(evoluDiv a, evoluDiv b){
 
 class evoluPopu{
 	private:
-		static const int YEAR = 100;
-		static const int YEARCUL = 50;
+		static const int YEAR = 70;
+		static const int YEARCUL = 40;
 		vector<evoluDiv> popu;
 		CGraph *G;
 		vector<vector<demand>> *dem;

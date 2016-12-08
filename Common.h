@@ -30,7 +30,7 @@ using namespace std;
 #define MIN 0.01
 #define CONSTANT 0
 #define K 16
-#define MINCAPACITY 60
+#define MINCAPACITY 10
 #define MAXCAPACITY 80
 
 
