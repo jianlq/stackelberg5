@@ -4,11 +4,19 @@
 
 double linearCal(double x, double c)
 {
-	double util=x/c;
-	if(util<0.3333) return x*1;
-	else if(util<0.6667) return x*3-2.0*c/3.0;
-	else if(util<0.9) return x*10-16*c/3;
-	else return x*70-178*c/3;
+	if(LINEAR){
+		double util=x/c;
+		if(util<0.3333) return x*1;
+		else if(util<0.6667) return x*3-2.0*c/3.0;
+		else if(util<0.9) return x*10-16*c/3;
+		else return x*70-178*c/3;
+	}
+	else{
+		if(x >= c)
+			return 100;
+		else
+			return 1.0/(c-x);
+	}
 }
 
 extern int overlay_num;
@@ -277,7 +285,6 @@ public:
 					flow += overlay_mark[j][k][i] * (*req)[j][k].flow;
 				}
 			}
-			//Link[i]->latency =(double)1/(Link[i]->capacity- flow); // 1/(C-x)
 			Link[i]->latency = linearCal(flow, Link[i]->capacity); //linear fitting
 		}
 		//////////////更新 to_overlay
@@ -335,7 +342,7 @@ CGraph::CGraph(char* inputFile)
 		vert.insert(a);
 		vert.insert(b);
 		c = rand()%MAXWEIGHT+2;
-		CEdge *e=new CEdge(i,a,b,c,d+MINCAPACITY);
+		CEdge *e=new CEdge(i,a,b,c,d+rand()%MINCAPACITY);
 		Link.push_back(e);
 		adjL[a].push_back(e); //出度边
 		adjRL[b].push_back(e); //入度边

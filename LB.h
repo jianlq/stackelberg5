@@ -59,23 +59,38 @@ vector<double> LBdictor(CGraph *G,vector<demand> & req,int end1,int end2,int end
 		}
 		
 		double del = 0;
-		for(int d = 0; d < end1; d++){  
+		for(int d = 0; d < end1; d++){ 
+			double cur = 0;
 			for(int i=0;i<G->m;i++)
-				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+				cur +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+			if(LINEAR)
+				del += cur;
+			else
+				del += cur*req[d].flow;
 		}
 		obj[0] = del;
 
 	    del = 0;
 		for(int d = end1; d < end2; d++){  
+			double cur=0;
 			for(int i=0;i<G->m;i++)
-				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+				cur +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+			if(LINEAR)
+				del += cur;
+			else
+				del += cur*req[d].flow;
 		}
 		obj[1] = del;
 
 		del = 0;
 		for(int d = end2; d < end3; d++){  
+			double cur=0;
 			for(int i=0;i<G->m;i++)
-				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+				cur +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+			if(LINEAR)
+				del += cur;
+			else
+				del += cur*req[d].flow;
 		}
 		obj[2] = del;
 	}
@@ -107,32 +122,64 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 	for(int d = 0; d < ornum; d++)
 		x[d] = IloIntVarArray(env, G->m, 0, 1);
 
-	IloNumVarArray cost(env,G->m,0.0 ,INF); 
-	IloExpr res(env);
-	for(int i = 0;i < G->m; i++)
-	{
-		double c = G->Link[i]->capacity;
-		IloNumExpr load(env);
-		IloIntVar one(env,0,1);
+	if(LINEAR){
+		IloNumVarArray cost(env,G->m,0.0 ,INF); 
+		IloExpr res(env);
+		for(int i = 0;i < G->m; i++)
+		{
+			double c = G->Link[i]->capacity;
+			IloNumExpr load(env);
+			IloIntVar one(env,0,1);
 
-		IloNumExpr load1(env);
-		for(int d = 0; d <  ornum; d++){
-			load1 += overlay[d].flow*x[d][i];
+			IloNumExpr load1(env);
+			for(int d = 0; d <  ornum; d++){
+				load1 += overlay[d].flow*x[d][i];
+			}
+			model.add(one >= load1/G->Link[i]->capacity);
+
+			load += load1;
+			for(int d = 0; d <  backnum; d++)
+				load += background[d].flow*y[d][i];
+
+			model.add(cost[i] >= 0 );		
+			model.add(cost[i] >= (load-(1-one)*INF) );
+			model.add(cost[i] >= ( 3*load-2*c/3-(1-one)*INF ) );
+			model.add(cost[i] >= ( 10*load-16*c/3 -(1-one)*INF ) );
+			model.add(cost[i] >= ( 70*load-178*c/3 -(1-one)*INF ) );
+			res += cost[i];
 		}
-		model.add(one >= load1/G->Link[i]->capacity);
-
-		load += load1;
-		for(int d = 0; d <  backnum; d++)
-			load += background[d].flow*y[d][i];
-		
-		model.add(cost[i] >= 0 );		
-		model.add(cost[i] >= (load-(1-one)*INF) );
-		model.add(cost[i] >= ( 3*load-2*c/3-(1-one)*INF ) );
-		model.add(cost[i] >= ( 10*load-16*c/3 -(1-one)*INF ) );
-		model.add(cost[i] >= ( 70*load-178*c/3 -(1-one)*INF ) );
-		res += cost[i];
+		model.add(IloMinimize(env, res));
 	}
-	model.add(IloMinimize(env, res));
+
+	else{
+		IloNumVarArray cost(env,G->m,0.0 ,INF); 
+		IloExpr res(env);
+
+		for(int i = 0;i < G->m; i++)
+		{
+			double c = G->Link[i]->capacity;
+			IloNumExpr load(env);
+			IloIntVar one(env,0,1);
+
+			IloNumExpr load1(env);
+			for(int d = 0; d <  ornum; d++){
+				load1 += overlay[d].flow*x[d][i];
+			}
+			model.add(one >= load1/G->Link[i]->capacity);
+
+			load += load1;
+			for(int d = 0; d <  backnum; d++)
+				load += background[d].flow*y[d][i];
+
+			model.add(cost[i] >= 0 );		
+			model.add(cost[i] >= (load/c-(1-one)*INF) );
+			model.add(cost[i] >= ( 3*load/c - 2.0/3-(1-one)*INF ) );
+			model.add(cost[i] >= ( 10*load/c - 16/3 -(1-one)*INF ) );
+			model.add(cost[i] >= ( 70*load/c - 178/3 -(1-one)*INF ) );
+			res += cost[i];
+		}
+		model.add(IloMinimize(env, res));
+	}
 
 	// overlay流量守恒约束
 	for(int d = 0; d < ornum; d++){
@@ -185,7 +232,6 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 
 	if(ORsolver.solve()){
 		obj = ORsolver.getObjValue();
-	
 		// mlu
 		double util = 0;
 		for(int i = 0; i < G->m; i++){  
@@ -195,18 +241,24 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 			for(int d = 0; d < backnum; d++)
 				load += ORsolver.getValue(y[d][i])*background[d].flow;
 			util = max(util,load/G->Link[i]->capacity);
-			G->Link[i]->use = load;
+			G->Link[i]->latency = linearCal(load,G->Link[i]->capacity);
 		}
 		G->mlu = util;
 
 		// delay
 		double del = 0;
-		for(int i = 0; i < G->m; i++){  
-			double cur = linearCal(G->Link[i]->use,G->Link[i]->capacity);
-			for(int d = 0; d < ornum; d++)
-				del += ORsolver.getValue(x[d][i])*cur;
+		for(int d = 0; d < ornum; d++){
+			double cur = 0;
+			for(int i=0;i<G->m;i++){
+				cur +=  ORsolver.getValue(x[d][i])*G->Link[i]->latency;
+			}
+			if(LINEAR)
+				del += cur;
+			else
+				del += cur*overlay[d].flow;
 		}
 		G->delay = del;
+		cout << obj<<"   "<<del<<endl;
 		obj = del;
 		cout << "OR\t利用率 "<<util<< "  \t延时 "<<del<<endl;
 	}
@@ -222,96 +274,6 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 	y.end();
 	env.end();
 	return obj;
-}
-
-double ORdictor(CGraph *G,vector<demand>& req,int start,int end){    
-	G->clearOcc();
-	IloEnv env;
-	IloModel model(env);
-	IloCplex ORsolver(model);
-	cout <<start<<" start end "<<end<<endl;
-	int totalnum = req.size();
-	IloArray<IloNumVarArray> x(env, totalnum); 
-	for(int d = 0; d < totalnum; d++)
-		x[d] = IloNumVarArray(env, G->m, 0, 1); // num * G->m 的二维矩阵
-
-	IloNumVarArray cost(env,G->m,0.0 ,INF); 
-	IloExpr res(env);
-	for(int i=0;i<G->m;i++)
-	{
-		IloNumExpr load(env);
-		//for(int d = start; d < end; d++)
-		for(int d = 0; d < totalnum; d++)
-			load += x[d][i]*req[d].flow;
-		double c = G->Link[i]->capacity;
-		model.add(cost[i] >= load);
-		model.add(cost[i] >= 3*load-2*c/3);
-		model.add(cost[i] >= 10*load-16*c/3);
-		model.add(cost[i] >= 70*load-178*c/3);
-		res += cost[i];
-	}
-	model.add(IloMinimize(env, res));
-
-	// 流量守恒约束
-	for(int d = 0; d < totalnum; d++)
-		for(int i = 0; i < G->n; i++){    // n为顶点数
-			IloExpr constraint(env);
-			for(unsigned int k = 0; k < G->adjL[i].size(); k++) // 出度边
-				constraint += x[d][G->adjL[i][k]->id];
-			for(unsigned int k = 0; k < G->adjRL[i].size(); k++) // 入度边
-				constraint -= x[d][G->adjRL[i][k]->id];
-			// 出 - 入
-			if(i == req[d].org)
-				model.add(constraint == 1);
-			else if(i == req[d].des)
-				model.add(constraint == -1);
-			else
-				model.add(constraint == 0);
-		}
-
-		//带宽约束
-		for(int i = 0; i < G->m; i++){
-			IloExpr constraint(env);
-			for(int d = 0; d <  totalnum; d++)
-				constraint += req[d].flow*x[d][i];
-			model.add(constraint <= G->Link[i]->capacity);  
-		}
-
-		ORsolver.setOut(env.getNullStream());
-		double obj = INF;
-
-		if(ORsolver.solve()){
-			obj = ORsolver.getObjValue();
-			//	cout << obj <<endl;
-			// mlu
-			double util = 0;
-			for(int i = 0; i < G->m; i++){  
-				double load = 0;
-				for(int d = 0; d < totalnum; d++)
-					load += ORsolver.getValue(x[d][i])*req[d].flow;
-				util = max(util,load/G->Link[i]->capacity);
-				G->Link[i]->use = load;
-			}
-			G->mlu = util;
-
-			// delay
-			double del = 0;
-			for(int i = 0; i < G->m; i++){  
-				double cur = linearCal(G->Link[i]->use,G->Link[i]->capacity);
-				for(int d = start; d < end; d++)
-					del += ORsolver.getValue(x[d][i])*cur;
-			}
-			obj = del;
-			cout << "OR\t利用率 "<<util<< "\t延时 "<<obj<<endl;
-		}
-		else
-			env.out() << "OR unfeasible" << endl;
-
-		for(int i = 0; i < req.size(); i++)
-			x[i].end();
-		x.end();
-		env.end();
-		return obj;
 }
 
 double TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
@@ -433,7 +395,6 @@ double TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 					flow += G->overlay_mark[j][k][i] * overlay[j][k].flow;
 				}
 			}
-			//G->Link[i]->latency =1.0/(G->Link[i]->capacity- flow); // 1/(C-x)
 			G->Link[i]->latency = linearCal(flow, G->Link[i]->capacity); //linear fitting
 		}
 		//////////////更新 to_overlay

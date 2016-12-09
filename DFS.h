@@ -160,8 +160,13 @@ void heuristicLB(CGraph *G,vector<demand>&req,int ornum,double &mlu,double &dela
 			G->Link[i]->latency = linearCal(G->Link[i]->use,G->Link[i]->capacity);
 		}
 		for(int d=0;d < ornum;d++){
+			double cur = 0;
 			for(unsigned int ij=0;ij<G->reqPathID[d].size();ij++)
-				delay +=  G->Link[G->reqPathID[d][ij]]->latency;
+				cur +=  G->Link[G->reqPathID[d][ij]]->latency;
+			if(LINEAR)
+				delay += cur;
+			else
+				delay += cur*req[d].flow;
 		}
 
 	}	
@@ -194,8 +199,13 @@ void heuristicOR(CGraph *G,vector<demand>&req,int ornum,double &delay,double &ml
 			G->Link[i]->latency = linearCal(G->Link[i]->use,G->Link[i]->capacity);
 		}
 		for(int d = 0;d < ornum;d++){
+			double cur = 0;
 			for(unsigned int ij = 0;ij < G->reqPathID[d].size(); ij++)
-				delay +=  G->Link[G->reqPathID[d][ij]]->latency;
+				cur +=  G->Link[G->reqPathID[d][ij]]->latency;
+			if(LINEAR)
+				delay += cur;
+			else
+				delay += cur*req[d].flow;
 		}
 		
 		cout << "HOR   "<<mlu<<"\t"<<delay<<endl;

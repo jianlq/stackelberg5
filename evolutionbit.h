@@ -274,8 +274,12 @@ double evoluDivbit::GAabilityNoCplex(){
 	this->GOR->clearOcc();
 	Caldelay();
 	double del = 0;
-	for (unsigned int d = 0; d < demor->size(); d++){		
+	for (unsigned int d = 0; d < demor->size(); d++){	
+		if(LINEAR)
 			del += GOR->dijkstra((*demor)[d].org, (*demor)[d].des, (*demor)[d].flow);
+		else
+			del += GOR->dijkstra((*demor)[d].org, (*demor)[d].des, (*demor)[d].flow)*(*demor)[d].flow;
+
 	}
 
 	//新的流量矩阵计算TE的目标

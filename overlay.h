@@ -167,9 +167,12 @@ public:
 		for(int i = 0;i < m;i++)
 		{
 			IloExpr constraint(env);
-			for(int j = 0;j < reqnum;j++)
-				constraint += x[j][i];                //// Linear fitting
-				//constraint += x[j][i] * req[j].flow; //// x1/(C-x)   1/C-x :delay[i]
+			for(int j = 0;j < reqnum;j++){
+				if(LINEAR)
+				constraint += x[j][i];     //// Linear fitting
+				else
+					constraint += x[j][i] * req[j].flow; //// x1/(C-x)   1/C-x :delay[i]
+			}
 			cost += delay[i] * constraint; 
 		}
 		mod.add(IloMinimize(env, cost));

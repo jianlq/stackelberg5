@@ -52,7 +52,7 @@ int main(){
 			overlay1->get_OD_infor("inputFile//overlay1_OD.txt");
 			overlay2->get_OD_infor("inputFile//overlay2_OD.txt");
 
-			CGraph *G = new CGraph("inputFile//testgraph.txt");
+			CGraph *G = new CGraph("inputFile//ATT.txt");
 			vector<demand> reqbase;//background
 			for(int i = 0; i < BGNUM; i++){
 				int s = rand()%G->n, t;
@@ -105,15 +105,15 @@ int main(){
 				break;
 
 			/////// overlay0 optimal
-		     vector<double> ordic(overlay_num,0);	
-			vector<demand> background0;
+		    vector<double> ordic(overlay_num,0);	
+			vector<demand> background;
 			for(int i=0;i<overlay1->edge_flow.size();i++)
-				background0.push_back(overlay1->edge_flow[i]);
+				background.push_back(overlay1->edge_flow[i]);
 			for(int i=0;i<overlay2->edge_flow.size();i++)
-				background0.push_back(overlay2->edge_flow[i]);
+				background.push_back(overlay2->edge_flow[i]);
 			for(int i=0;i<reqbase.size();i++)
-				background0.push_back(reqbase[i]);
-			ordic[0] = ORdictor(G,background0,overlay0->edge_flow);
+				background.push_back(reqbase[i]);
+			ordic[0] = ORdictor(G,background,overlay0->edge_flow);
 			if( ordic[0] + 1e-5 <INF){
 				sucCaseOR[0]++;
 				or[0] += ordic[0];
@@ -124,14 +124,14 @@ int main(){
 				break;
 
 			/////// overlay1 optimal
-			vector<demand> background1;
+			background.clear();
 			for(int i=0;i<overlay0->edge_flow.size();i++)
-				background1.push_back(overlay0->edge_flow[i]);
+				background.push_back(overlay0->edge_flow[i]);
 			for(int i=0;i<overlay2->edge_flow.size();i++)
-				background1.push_back(overlay2->edge_flow[i]);
+				background.push_back(overlay2->edge_flow[i]);
 			for(int i=0;i<reqbase.size();i++)
-				background1.push_back(reqbase[i]);
-			ordic[1] = ORdictor(G,background1,overlay1->edge_flow);
+				background.push_back(reqbase[i]);
+			ordic[1] = ORdictor(G,background,overlay1->edge_flow);
 			if( ordic[1] + 1e-5 < INF ){
 				sucCaseOR[1]++;
 				or[1] += ordic[1];
@@ -143,14 +143,14 @@ int main(){
 		
 			
 			/////// overlay2 optimal
-			vector<demand> background2;
+			background.clear();
 			for(int i=0;i<overlay0->edge_flow.size();i++)
-				background2.push_back(overlay0->edge_flow[i]);
+				background.push_back(overlay0->edge_flow[i]);
 			for(int i=0;i<overlay1->edge_flow.size();i++)
-				background2.push_back(overlay1->edge_flow[i]);
+				background.push_back(overlay1->edge_flow[i]);
 			for(int i=0;i<reqbase.size();i++)
-				background2.push_back(reqbase[i]);
-			ordic[2] = ORdictor(G,background2,overlay2->edge_flow);
+				background.push_back(reqbase[i]);
+			ordic[2] = ORdictor(G,background,overlay2->edge_flow);
 			if( ordic[2] + 1e-5 <INF){
 				sucCaseOR[2]++;
 				or[2] += ordic[2];
@@ -160,7 +160,6 @@ int main(){
 			else
 				break;
 
-
 			// initial flow_mark
 			vector<int> overlayODnum;
 			overlayODnum.push_back(overlay0->getEdgeNum());
@@ -168,8 +167,69 @@ int main(){
 			overlayODnum.push_back(overlay2->getEdgeNum());
 			G->initMark(reqbase.size(),overlayODnum);
 
-			//////relaxation for calculate NE 	
-			double ne = TE(G,reqbase,overlayReq);
+			////////relaxation for calculate NE 	
+			//和下面的求法结果一致
+			//double ne2 = TE(G,reqbase,overlayReq);
+			//if(ne2 + 1e-5 < INF){
+			//	overlay0->getDelay(G->get_To_overlay(0));
+			//	overlay1->getDelay(G->get_To_overlay(1));
+			//	overlay2->getDelay(G->get_To_overlay(2));
+
+			//	//////relaxation	
+			//	vector<vector<demand>> updatereq;
+			//	for(int i = 0;i < 100;i++){
+			//		beta =(double)1/(i+1);
+			//		updatereq.clear();
+
+			//		overlay0->LP();
+
+			//		updatereq.push_back( overlay0->getTrafficMatrix());
+			//		updatereq.push_back( overlay1->getTrafficMatrix());
+			//		updatereq.push_back( overlay2->getTrafficMatrix());
+
+			//		updatereq.push_back(reqbase);//background traffic
+
+			//		G->CalculateDelay(&updatereq);
+			//		overlay1->updateDelay(G->get_To_overlay(1));
+			//		overlay1->LP();	
+			//		updatereq.clear();
+			//		updatereq.push_back( overlay0->getTrafficMatrix());
+			//		updatereq.push_back( overlay1->getTrafficMatrix());
+			//		updatereq.push_back( overlay2->getTrafficMatrix());
+
+			//		updatereq.push_back(reqbase);//background traffic
+
+			//		G->CalculateDelay(&updatereq);
+			//		overlay2->updateDelay(G->get_To_overlay(2));		
+			//		overlay2->LP();
+
+			//		updatereq.clear();
+			//		updatereq.push_back( overlay0->getTrafficMatrix());
+			//		updatereq.push_back( overlay1->getTrafficMatrix());
+			//		updatereq.push_back( overlay2->getTrafficMatrix());
+			//		updatereq.push_back(reqbase);//background traffic
+
+			//		G->CalculateDelay(&updatereq);
+			//		overlay0->updateDelay(G->get_To_overlay(0));
+			//		
+			//		
+			//	}
+			//	cout << updatereq.size();
+			//	// util
+			//	double util = G->CalculateMLU(&updatereq);
+			//	fprintf(out,"NE,%f,%f,%f,%f\n",util,overlay0->getCost(),overlay1->getCost(),overlay2->getCost());
+			//	fclose(out);
+			//	
+			//	NEmlu += util;
+			//	NEdel[0] += overlay0->getCost();
+			//	NEdel[1] += overlay1->getCost();
+			//	NEdel[2] += overlay2->getCost();
+			//	sucCaseNE++;
+			//}
+			//else
+			//	break;
+				
+			double ne = TE(G,reqbase,overlayReq); ////////relaxation for calculate NE 
 			if(ne + 1e-5 < INF){
 				overlay0->getDelay(G->get_To_overlay(0));
 				overlay1->getDelay(G->get_To_overlay(1));
@@ -211,6 +271,8 @@ int main(){
 			}
 			else
 				break;
+
+			exit(1);
 
 			G->clearMark();//mark置位
 			
