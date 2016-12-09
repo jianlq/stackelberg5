@@ -13,23 +13,27 @@ class evoluDiv{
 		CGraph *G;
 		vector<vector<demand>> *dem;
 		vector<overlay*> Overlay;
+		double consider;
 	public:
 		vector<double> x;
+		double mlu;
 		double ability;
 		evoluDiv() {;}
-		evoluDiv(int m, CGraph *g, vector<vector<demand>> *d,vector<overlay*>&ov){
+		evoluDiv(int m, CGraph *g, vector<vector<demand>> *d,vector<overlay*>&ov,double con){
 			x.resize(m);
 			G = g;
 			dem = d;
 			Overlay = ov;
+			consider = con;
 			randNature();	
 		}
 
-		evoluDiv(vector<double> &tx, CGraph *g, vector<vector<demand>> *d,vector<overlay*> &ov){
+		evoluDiv(vector<double> &tx, CGraph *g, vector<vector<demand>> *d,vector<overlay*> &ov,double con){
 			x.clear();
 			G = g;
 			dem = d;
 			Overlay = ov;
+			consider = con;
 			for(int i = 0; i < tx.size(); i++)
 				x.push_back(tx[i]);
 		}
@@ -40,7 +44,7 @@ class evoluDiv{
 				double r = 1.0 * rand() / (RAND_MAX);
 				nx.push_back(r * x[i] + (1 - r) * other.x[i]);
 			}
-			return evoluDiv(nx, G, dem,Overlay);
+			return evoluDiv(nx, G, dem,Overlay,consider);
 		}
 
 		bool TE(){
@@ -80,6 +84,7 @@ class evoluDiv{
 
 		////ability
 		void calAbility(){  
+			mlu = 0;
 			ability = 0;
 			G->clearOcc();
 			for(int i = 0; i < G->m; i++)
@@ -88,6 +93,7 @@ class evoluDiv{
 			// relaxation algorithm
 			if(!TE()){
 				ability = INF;
+				mlu = INF;
 				return ;
 			}
 			//underlay calculate delay for overlay
@@ -114,11 +120,12 @@ class evoluDiv{
 
 			// util
 			double util = G->CalculateMLU(&updatereq);
-			ability += util;
-
-			cout << " mlu: \t" << util <<endl;
-			cout << "overlay0:"<< Overlay[0]->getCost() << " \toverlay1:" << Overlay[1]->getCost() << " \toverlay2:" << Overlay[2]->getCost()<<endl;
+			mlu += util;
+			cout << " mlu: \t" << util <<"overlay0:"<< Overlay[0]->getCost() << " \toverlay1:" << Overlay[1]->getCost() << " \toverlay2:" << Overlay[2]->getCost()<<endl;
 			
+			double cost = Overlay[0]->getCost() + Overlay[1]->getCost() +Overlay[2]->getCost() ;
+			ability += util + this->consider/cost;
+
 			G->clearMark();
 		}
 
@@ -154,29 +161,34 @@ bool evoluCmp(evoluDiv a, evoluDiv b){
 
 class evoluPopu{
 	private:
-		static const int YEAR = 70;
-		static const int YEARCUL = 40;
+		static const int YEAR = 80;
+		static const int YEARCUL = 35;
+		static const int NOHERO = 25;
 		vector<evoluDiv> popu;
 		CGraph *G;
 		vector<vector<demand>> *dem;
+		FILE *herofile;
 	public:
 		evoluDiv hero;
 		// n 个体数，m：每个个体对应的解
-		evoluPopu(int n, int m, CGraph *g, vector<vector<demand>> *d,vector<overlay*> &mutil){
+		evoluPopu(int n, int m, CGraph *g, vector<vector<demand>> *d,vector<overlay*> &mutil,double con){
 			popu.clear();
 			G = g;
 			dem = d;
 			for(int i = 0; i < n; i++){
-				evoluDiv divi(m, G, dem,mutil);
+				evoluDiv divi(m, G, dem,mutil,con);
 				popu.push_back(divi);
 			}
-			hero = evoluDiv(m, G, dem,mutil);
+			hero = evoluDiv(m, G, dem,mutil,con);
+			herofile = fopen("outputFile//hero.csv","a");
 		}
 		evoluDiv evolution(){
+			int nohero=0;
+			fprintf(herofile,"Start:\n ");
 			for(int i = 0; i < hero.x.size(); i++)
 				hero.x[i] = G->Link[i]->dist;
-			//hero.x[i] = 1;
 			hero.calAbility();
+			fprintf(herofile, "%f\n", hero.ability);
 
 			for(int i = 0; i < popu.size(); i++)
 				popu[i].calAbility();
@@ -184,7 +196,6 @@ class evoluPopu{
 			sort(popu.begin(), popu.end(), evoluCmp);
 			
 			for(int curYear = 1; curYear <= YEAR; curYear++){
-				printf("curYear %d\n", curYear);
 				int n = popu.size(), getMore = 0;
 				vector<evoluDiv> sons;
 				for(int i = 0; i+1 < n; i+=2){
@@ -208,15 +219,17 @@ class evoluPopu{
 						getMore = 1;
 					}
 				}
-				/*
 				if(getMore){
-					printf("Year %d: find (%f", curYear, hero.x[0]);
-					for(int i = 1; i < hero.x.size(); i++)
-						printf(", %f", hero.x[i]);
-					printf(") has ability %f\n", hero.ability());
+					fprintf(herofile, "Year %d: find hero \n", curYear);
+					fprintf(herofile,"%f\n", hero.ability);
 				}
-				*/
+				else nohero++;
+				if(nohero> NOHERO){
+					break;
+				}
 			}
+			fprintf(herofile,"end\n\n\n\n");
+			fclose(herofile);
 			return hero;
 		}
 };

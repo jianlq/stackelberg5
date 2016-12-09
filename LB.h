@@ -4,7 +4,7 @@
 #include <ilcplex/ilocplex.h>
 
 // 4+x^2
-double LBdictor(CGraph *G,vector<demand> & req){
+vector<double> LBdictor(CGraph *G,vector<demand> & req,int end1,int end2,int end3){
 	G->clearOcc();
 	IloEnv env;
 	IloModel model(env);
@@ -46,23 +46,38 @@ double LBdictor(CGraph *G,vector<demand> & req){
 	}	
 
 	EEsolver.setOut(env.getNullStream());
-	double obj = INF;
+	vector<double>  obj(overlay_num,INF);
 	if(EEsolver.solve()){
-		obj = EEsolver.getObjValue(); //mlu
-		//delay
+		G->mlu = EEsolver.getObjValue(); //mlu
+		
+		//Linear Fitting
 		for(int i=0;i<G->m;i++){  
 			double loadc = 0;
 			for(int d=0;d < num;d++)
 				loadc += EEsolver.getValue(x[d][i])*req[d].flow;
-			G->Link[i]->latency = linearCal(loadc,G->Link[i]->capacity);
+			G->Link[i]->latency = linearCal(loadc,G->Link[i]->capacity); //拟合
 		}
+		
 		double del = 0;
-		for(int d=0;d < num; d++){  //ornum
+		for(int d = 0; d < end1; d++){  
 			for(int i=0;i<G->m;i++)
 				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
 		}
-		G->delay = del;
-		cout << "LB\t利用率 "<< obj <<"\t延时 "<<del<<endl;
+		obj[0] = del;
+
+	    del = 0;
+		for(int d = end1; d < end2; d++){  
+			for(int i=0;i<G->m;i++)
+				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+		}
+		obj[1] = del;
+
+		del = 0;
+		for(int d = end2; d < end3; d++){  
+			for(int i=0;i<G->m;i++)
+				del +=  EEsolver.getValue(x[d][i])*G->Link[i]->latency;
+		}
+		obj[2] = del;
 	}
 	else{
 		cout << "LB unfeasible"<<endl;
@@ -79,10 +94,6 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 	IloEnv env;
 	IloModel model(env);
 	IloCplex ORsolver(model);
-
-	//QCP问题用这个可以提速4倍左右
-	//ORsolver.setParam(IloCplex::Param::Barrier::QCPConvergeTol,1e-10);
-	//quadratically contrained programming
 	
 	// background : underlying traffic,other overlay traffic
 	int backnum = background.size();
@@ -92,7 +103,7 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 
 	//specific overlay
 	int ornum = overlay.size();
-	IloArray<IloIntVarArray> x(env, backnum); 
+	IloArray<IloIntVarArray> x(env, ornum); 
 	for(int d = 0; d < ornum; d++)
 		x[d] = IloIntVarArray(env, G->m, 0, 1);
 
@@ -174,7 +185,7 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 
 	if(ORsolver.solve()){
 		obj = ORsolver.getObjValue();
-		cout <<obj<<endl;
+	
 		// mlu
 		double util = 0;
 		for(int i = 0; i < G->m; i++){  
@@ -303,7 +314,7 @@ double ORdictor(CGraph *G,vector<demand>& req,int start,int end){
 		return obj;
 }
 
-void TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
+double TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 {
 	int x_num = 0;
 	for(int i = 0;i < overlay_num;i++)
@@ -388,9 +399,10 @@ void TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 	}
 
 	solver.setOut(env.getNullStream());
+	double obj = INF;
 	if(solver.solve()){
 		cout<<"obj value:"<<solver.getObjValue()<<endl;
-		G->mlu = solver.getObjValue() ;
+		obj = G->mlu = solver.getObjValue() ;
 		for(int i = 0;i < background_num;i++)
 			for(int j = 0;j < G->m;j++)
 				G->background_mark[i][j] = solver.getValue(y[i][j]);
@@ -441,7 +453,7 @@ void TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 		cout<<"TE unfeasible"<<endl;
 	}
 	env.end();
-
+	return obj;
 }
 
 #endif

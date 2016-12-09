@@ -3,10 +3,9 @@
 #include"overlay.h"
 
 int overlay_num = 3;
-int LOOP = 50;
+int LOOP = 60;
 double alpha = 1;
 double beta = 0.3;
-
 
 int main(){
 	srand((unsigned)time(NULL));
@@ -14,9 +13,9 @@ int main(){
 	int CASEnum= 30;	
 
 	vector<double>CONSIDER;
-	int CON_VALUE = 25;
+	int CON_VALUE = 1;
 	double c =0;
-	for(int i=0;i <= CON_VALUE;i++){
+	for(int i = 0; i <= CON_VALUE;i++){
 		CONSIDER.push_back(c);
 		c += 0.2;
 	}
@@ -24,9 +23,24 @@ int main(){
 	for(int i =0;i<Time;i++){
 
 		int conN = CONSIDER.size();
-		vector<double> cmpmlu(conN,0) ;
-		vector<double> cmpdelay(conN,0);
-		vector<int> successCase (conN, 0) ;
+		vector<double> smlu(conN,0) ;
+		vector<vector<double>> sdel(overlay_num);
+		for(int i = 0;i<sdel.size();i++)
+			sdel[i].resize(conN,0);
+		vector<int> sucCaseSNE (conN, 0) ;
+
+		double mlu = 0;
+		vector<double> mludel(overlay_num, 0);
+
+		int sucCaseLB = 0;
+
+		vector<double> or(overlay_num,0);
+		vector<double> ormlu(overlay_num,0);
+		vector<int> sucCaseOR(overlay_num,0);
+
+		double NEmlu = 0;
+		vector<double> NEdel(overlay_num, 0);
+		int sucCaseNE = 0;
 
 		for(int casenum = 0; casenum < CASEnum; casenum++){
 
@@ -38,7 +52,7 @@ int main(){
 			overlay1->get_OD_infor("inputFile//overlay1_OD.txt");
 			overlay2->get_OD_infor("inputFile//overlay2_OD.txt");
 
-			CGraph *G = new CGraph("inputFile//ATT.txt");
+			CGraph *G = new CGraph("inputFile//testgraph.txt");
 			vector<demand> reqbase;//background
 			for(int i = 0; i < BGNUM; i++){
 				int s = rand()%G->n, t;
@@ -47,42 +61,6 @@ int main(){
 				}while( s == t || G->canNotReach(s,t));
 				reqbase.push_back(demand(s, t, rand()%(MAXDEMAND)+1));
 			}
-
-			FILE *out = fopen("outputFile//lbdel.csv", "a");
-			///////each overlay selfish规划
-		     vector<double> ordic(overlay_num,0);	
-			vector<demand> background0;
-			for(int i=0;i<overlay1->req.size();i++)
-				background0.push_back(overlay1->req[i]);
-			for(int i=0;i<overlay2->req.size();i++)
-				background0.push_back(overlay2->req[i]);
-			for(int i=0;i<reqbase.size();i++)
-				background0.push_back(reqbase[i]);
-			ordic[0] = ORdictor(G,background0,overlay0->req);
-			fprintf(out,"OR0,%f,%f\n",G->mlu,ordic[0]);
-			
-
-			vector<demand> background1;
-			for(int i=0;i<overlay0->req.size();i++)
-				background1.push_back(overlay0->req[i]);
-			for(int i=0;i<overlay2->req.size();i++)
-				background1.push_back(overlay2->req[i]);
-			for(int i=0;i<reqbase.size();i++)
-				background1.push_back(reqbase[i]);
-			ordic[1] = ORdictor(G,background1,overlay1->req);
-			fprintf(out,"OR1,%f,%f\n",G->mlu,ordic[1]);
-			
-			vector<demand> background2;
-			for(int i=0;i<overlay0->req.size();i++)
-				background2.push_back(overlay0->req[i]);
-			for(int i=0;i<overlay1->req.size();i++)
-				background2.push_back(overlay1->req[i]);
-			for(int i=0;i<reqbase.size();i++)
-				background2.push_back(reqbase[i]);
-			ordic[2] = ORdictor(G,background2,overlay2->req);
-			fprintf(out,"OR2,%f,%f\n",G->mlu,ordic[2]);
-			//exit(1);
-
 
 			//////初始分配
 			overlay0->LP();
@@ -109,21 +87,79 @@ int main(){
 			for(int i=0;i<reqbase.size();i++)
 				flow_OD.push_back(reqbase[i]);
 
-			double eedic = 0;
-			int end1 = overlay0->edge_flow.size(),end2=overlay0->edge_flow.size()+overlay1->edge_flow.size();
+			FILE *out = fopen("outputFile//cur.csv", "a");
+			fprintf(out,"\n\n\n casenum,%d \n",casenum);
+			int end1 = overlay0->edge_flow.size();
+			int end2 = overlay0->edge_flow.size()+overlay1->edge_flow.size();
 			int end3 = flow_OD.size()-reqbase.size();
-			eedic = LBdictor(G,flow_OD);
-			fprintf(out,"\n\nLB,%f,%f\n",eedic,G->delay);
+			vector<double> del = LBdictor(G,flow_OD,end1,end2,end3);
+			if( G->mlu +1e-5 < INF){
+				sucCaseLB++;
+				mlu += G->mlu;
+				mludel[0] += del[0];
+				mludel[1] += del[1];
+				mludel[2] += del[2];
+				fprintf(out,"LB,%f,%f,%f,%f\n",G->mlu,del[0],del[1],del[2]);
+			}
+			else
+				break;
 
+			/////// overlay0 optimal
+		     vector<double> ordic(overlay_num,0);	
+			vector<demand> background0;
+			for(int i=0;i<overlay1->edge_flow.size();i++)
+				background0.push_back(overlay1->edge_flow[i]);
+			for(int i=0;i<overlay2->edge_flow.size();i++)
+				background0.push_back(overlay2->edge_flow[i]);
+			for(int i=0;i<reqbase.size();i++)
+				background0.push_back(reqbase[i]);
+			ordic[0] = ORdictor(G,background0,overlay0->edge_flow);
+			if( ordic[0] + 1e-5 <INF){
+				sucCaseOR[0]++;
+				or[0] += ordic[0];
+				ormlu[0] += G->mlu;
+				fprintf(out,"OR0,%f,%f\n",G->mlu,ordic[0]);
+			}
+			else
+				break;
+
+			/////// overlay1 optimal
+			vector<demand> background1;
+			for(int i=0;i<overlay0->edge_flow.size();i++)
+				background1.push_back(overlay0->edge_flow[i]);
+			for(int i=0;i<overlay2->edge_flow.size();i++)
+				background1.push_back(overlay2->edge_flow[i]);
+			for(int i=0;i<reqbase.size();i++)
+				background1.push_back(reqbase[i]);
+			ordic[1] = ORdictor(G,background1,overlay1->edge_flow);
+			if( ordic[1] + 1e-5 < INF ){
+				sucCaseOR[1]++;
+				or[1] += ordic[1];
+				ormlu[1] += G->mlu;
+				fprintf(out,"OR1,%f,,%f\n",G->mlu,ordic[1]);
+			}
+			else
+				break;
 		
-			ordic[0] = ORdictor(G,flow_OD,0,end1);
-			fprintf(out,"OR0,%f,%f\n",G->mlu,ordic[0]);
 			
-			ordic[1] = ORdictor(G,flow_OD,end1,end2);
-			fprintf(out,"OR1,%f,%f\n",G->mlu,ordic[1]);
-			
-			ordic[2] = ORdictor(G,flow_OD,end2,end3);
-			fprintf(out,"OR2,%f,%f\n",G->mlu,ordic[2]);
+			/////// overlay2 optimal
+			vector<demand> background2;
+			for(int i=0;i<overlay0->edge_flow.size();i++)
+				background2.push_back(overlay0->edge_flow[i]);
+			for(int i=0;i<overlay1->edge_flow.size();i++)
+				background2.push_back(overlay1->edge_flow[i]);
+			for(int i=0;i<reqbase.size();i++)
+				background2.push_back(reqbase[i]);
+			ordic[2] = ORdictor(G,background2,overlay2->edge_flow);
+			if( ordic[2] + 1e-5 <INF){
+				sucCaseOR[2]++;
+				or[2] += ordic[2];
+				ormlu[2] += G->mlu;
+				fprintf(out,"OR2,%f,,,%f\n",G->mlu,ordic[2]);
+			}
+			else
+				break;
+
 
 			// initial flow_mark
 			vector<int> overlayODnum;
@@ -133,42 +169,48 @@ int main(){
 			G->initMark(reqbase.size(),overlayODnum);
 
 			//////relaxation for calculate NE 	
-			 TE(G,reqbase,overlayReq);
-			 fprintf(out,"TE,%f\n",G->mlu);
+			double ne = TE(G,reqbase,overlayReq);
+			if(ne + 1e-5 < INF){
+				overlay0->getDelay(G->get_To_overlay(0));
+				overlay1->getDelay(G->get_To_overlay(1));
+				overlay2->getDelay(G->get_To_overlay(2));
 
-			overlay0->getDelay(G->get_To_overlay(0));
-			overlay1->getDelay(G->get_To_overlay(1));
-			overlay2->getDelay(G->get_To_overlay(2));
+				//////relaxation	
+				vector<vector<demand>> updatereq;
+				for(int i = 0;i < 200;i++){
+					beta =(double)1/(i+1);
+					updatereq.clear();
 
-			//////relaxation	
-			vector<vector<demand>> updatereq;
-			for(int i = 0;i < 200;i++){
-				beta =(double)1/(i+1);
-				updatereq.clear();
+					overlay0->LP();
+					overlay1->LP();	
+					overlay2->LP();
 
-				overlay0->LP();
-				overlay1->LP();	
-				overlay2->LP();
+					updatereq.push_back( overlay0->getTrafficMatrix());
+					updatereq.push_back( overlay1->getTrafficMatrix());
+					updatereq.push_back( overlay2->getTrafficMatrix());
 
-				updatereq.push_back( overlay0->getTrafficMatrix());
-				updatereq.push_back( overlay1->getTrafficMatrix());
-				updatereq.push_back( overlay2->getTrafficMatrix());
-		
-				updatereq.push_back(reqbase);//background traffic
+					updatereq.push_back(reqbase);//background traffic
 
-				G->CalculateDelay(&updatereq);
-			
-				overlay0->updateDelay(G->get_To_overlay(0));
-				overlay1->updateDelay(G->get_To_overlay(1));
-				overlay2->updateDelay(G->get_To_overlay(2));		
+					G->CalculateDelay(&updatereq);
+
+					overlay0->updateDelay(G->get_To_overlay(0));
+					overlay1->updateDelay(G->get_To_overlay(1));
+					overlay2->updateDelay(G->get_To_overlay(2));		
+				}
+				cout << updatereq.size();
+				// util
+				double util = G->CalculateMLU(&updatereq);
+				fprintf(out,"NE,%f,%f,%f,%f\n",util,overlay0->getCost(),overlay1->getCost(),overlay2->getCost());
+				fclose(out);
+				
+				NEmlu += util;
+				NEdel[0] += overlay0->getCost();
+				NEdel[1] += overlay1->getCost();
+				NEdel[2] += overlay2->getCost();
+				sucCaseNE++;
 			}
-			cout << updatereq.size();
-			// util
-			double util = G->CalculateMLU(&updatereq);
-			cout << "NE "<<" util "<<util<<endl;
-			fprintf(out,"NE,%f,%f,%f,%f\n",util,overlay0->getCost(),overlay1->getCost(),overlay2->getCost());
-			fclose(out);
-			exit(1);
+			else
+				break;
 
 			G->clearMark();//mark置位
 			
@@ -182,27 +224,65 @@ int main(){
 			MutilOverlay.push_back(overlay0);
 			MutilOverlay.push_back(overlay1);
 			MutilOverlay.push_back(overlay2);	
-
+			double sumcost = ordic[0]+ordic[1]+ordic[2];
 			for(int con = 0;con < CONSIDER.size();con++)
 			{
-				evoluPopu popu(100, G->m, G, &ALLreq,MutilOverlay);
+				evoluPopu popu(50, G->m, G, &ALLreq,MutilOverlay,CONSIDER[con]*sumcost);
 				evoluDiv ret = popu.evolution();
-				cout << " WS "<<ret.ability<<endl;
-				out = fopen("outputFile//lbdel.csv", "a");
-				fprintf(out,"WS,%f,%f,%f,%f\n",ret.ability,overlay0->getCost(),overlay1->getCost(),overlay2->getCost());
-		    	fclose(out);
-				exit(1);
+				if(ret.ability + 1e-5 < INF ){
+					smlu[con] += ret.mlu;
+					sdel[0][con] += overlay0->getCost();
+					sdel[1][con] += overlay1->getCost();
+					sdel[2][con] += overlay2->getCost();
+					sucCaseSNE[con]++;
+					out = fopen("outputFile//lbdel.csv", "a");
+					fprintf(out,"SNE,%f,%f,%f,%f,%f\n",CONSIDER[con],ret.ability,overlay0->getCost(),overlay1->getCost(),overlay2->getCost());
+					fclose(out);
+				}
 			}
 			delete G;
 			delete overlay0;
 			delete overlay1;
 			delete overlay2;
+		} // end of CaseNum for
+
+		FILE *res = fopen("outputFile//avgresult.csv", "a");		
+		fprintf(res,"\n\n%d case average\n",CASEnum);
+		fprintf(res,",CONSIDER,sucCase,mlu,overlay0 delay,overlay1 delay,overlay2 delay\n");
+
+		fprintf(res, "LB,,%d,%lf,%lf,%lf,%lf\n",sucCaseLB,
+			mlu/sucCaseLB,
+			mludel[0]/sucCaseLB,
+			mludel[1]/sucCaseLB,
+			mludel[2]/sucCaseLB);
+
+		fprintf(res, "OR0,,%d,%lf,%lf\n",sucCaseOR[0],
+			or[0]/sucCaseOR[0],
+			ormlu[0]/sucCaseOR[0]);
+
+		fprintf(res, "OR1,,%d,%lf,,%lf\n",sucCaseOR[1],
+			or[1]/sucCaseOR[1],
+			ormlu[1]/sucCaseOR[1]);
+
+		fprintf(res, "OR2,,%d,%lf,,,%lf\n",sucCaseOR[2],
+			or[2]/sucCaseOR[2],
+			ormlu[2]/sucCaseOR[2]);
+
+		fprintf(res, "NE,,%d,%lf,%lf,%lf,%lf\n",sucCaseNE,
+			NEmlu/sucCaseNE,
+			NEdel[0]/sucCaseNE,
+			NEdel[1]/sucCaseNE,
+			NEdel[2]/sucCaseNE );
+		
+		for(unsigned int con = 0;con < CONSIDER.size();con++){
+			fprintf(res, "SNE,%lf,%d,%lf,%lf,%lf,%lf\n",CONSIDER[con],sucCaseSNE[con],
+				smlu[con]/sucCaseSNE[con],
+				sdel[0][con]/sucCaseSNE[con],
+			    sdel[1][con]/sucCaseSNE[con],
+			    sdel[2][con]/sucCaseSNE[con]); 
 		}
-	/*	FILE *res = fopen("outputFile//result.csv", "a");
-
-		fclose(res);*/
-
-	}
+		fclose(res);
+	} //// end of Time for
 	system("pause");
 	return 0;	
 }
