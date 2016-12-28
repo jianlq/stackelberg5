@@ -47,18 +47,19 @@ void CGraph::KSP(int s, int t, unsigned int k)
 
 
 //计算每个OD对之间的路径
+////  计算每个 OD对之间的路径   
 bool CGraph::GAinit(vector<demand> &req){
-
-	////ksp
+	
+	////KSP
 	//reqlistPath.clear();
 	//for(unsigned int i=0;i<req.size();i++){  
 	//	KSP(req[i].org,req[i].des,K); //计算得到一个OD对的listPath
 	//	reqlistPath.push_back(listPath);
-	//	if(listPath.size()<K)
+	//	if(listPath.size() < K )
 	//		return false;
 	//}
 	//return true;
-	
+
 	////// DFS
 	reqlistPath.clear();
 	for(unsigned int i=0;i<req.size();i++){
@@ -66,34 +67,33 @@ bool CGraph::GAinit(vector<demand> &req){
 		vector<vector<CEdge*>> reqpath;
 		while(j < K){
 			SetUNVISITED();
+			pathver.clear();
 			myDFS(req[i].org,req[i].des);
-			if(DFSflag == 1 ){
+			if(DFSflag){
 				j++;
 				vector<CEdge*> tmp;
-				for(int p = 0;p <pathver.size();p += 2){
+				int p = 0;
+				while( p < (pathver.size()-1) ){
 					int s = pathver[p],t = pathver[p+1];
 					for(unsigned int  a = 0; a <Link.size(); a++){
 						if(Link[a]->tail == s && Link[a]->head == t ){
 							tmp.push_back(Link[a]);
-						    break;
+							break;
 						}
 					}
+					p++;
 				}
 				reqpath.push_back(tmp);
 			}
 		}
 		if( reqpath.size() < K)
 			return false;
-
-		reqlistPath.push_back(reqpath);
-		
+		reqlistPath.push_back(reqpath);		
 	}
 	return true;
-
 }
 
 void CGraph::myDFS(int s,int t){
-	  
 		if (!visit[s]){
 		   pathver.push_back(s);
 		   visit[s] = true;
@@ -103,16 +103,15 @@ void CGraph::myDFS(int s,int t){
 			return ; 
 		}
 		vector<int> unvit;
-		int ss ,ret=0; // ret表示回溯点
-		for(unsigned  int i =0;i<adjL[s].size();i++){
+		int ss ,ret=0; 
+		for(unsigned  int i = 0; i < adjL[s].size();i++){
 			if(visit[adjL[s][i]->head])
 				continue;	
 			else
 				unvit.push_back(adjL[s][i]->head); //没有访问的顶点编号		
 		}		
 		if(unvit.size()== 0) {  // 没有未被访问的邻节点
-			if(pathver.size()>0)
-				pathver.pop_back();
+			pathver.pop_back();
 			if(pathver.size()>0) { 
 				ss = pathver[pathver.size()-1];
 				ret = 1;  //表示有回溯点

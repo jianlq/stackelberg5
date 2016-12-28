@@ -276,7 +276,7 @@ double ORdictor(CGraph *G,vector<demand>& background,vector<demand>& overlay){
 	return obj;
 }
 
-double TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
+double TEcplex(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 {
 	int x_num = 0;
 	for(int i = 0;i < overlay_num;i++)
@@ -415,6 +415,41 @@ double TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay)
 	}
 	env.end();
 	return obj;
+}
+
+bool TE(CGraph *G,vector<demand> &background,vector<vector<demand>> &overlay){
+	int can = 0;
+	int sumreq = background.size();
+	int num = overlay.size(); //OR1,OR2,OR3
+	for(int i = 0; i < num ; i++)
+		sumreq += overlay[i].size();	
+
+	for(int d = 0; d < background.size();d++){
+		double dis = G->dijkstraWeight(d,background[d].org, background[d].des, background[d].flow);
+		if( dis+1e-5 <=INF){
+			for( int k = 0;k< G->reqPathID[d].size();k++){
+				G->background_mark[d][G->reqPathID[d][k]] = 1;
+			}
+			can++;
+		}
+	}
+
+	for(int i = 0; i < num; i++){  //// i:Overlay No
+		for(int d = 0; d < overlay[i].size();d++){
+			double dis = G->dijkstraWeight(d,overlay[i][d].org, overlay[i][d].des, overlay[i][d].flow);
+			if( dis+1e-5 < INF){
+				for( int k = 0; k < G->reqPathID[d].size();k++){
+					G->overlay_mark[i][d][G->reqPathID[d][k]] = 1;
+				}
+				can++;
+			}
+		}
+	}
+
+	if( can < sumreq ){
+		return false;
+	}
+	return true;
 }
 
 #endif

@@ -17,9 +17,17 @@ class evoluDiv{
 	public:
 		vector<double> x;
 		double mlu;
+		double cost;
 		double ability;
 		evoluDiv() {;}
+
+		void init(){
+			ability = INF;
+			mlu = INF;
+			cost = INF;
+		}
 		evoluDiv(int m, CGraph *g, vector<vector<demand>> *d,vector<overlay*>&ov,double con){
+			init();
 			x.resize(m);
 			G = g;
 			dem = d;
@@ -29,6 +37,7 @@ class evoluDiv{
 		}
 
 		evoluDiv(vector<double> &tx, CGraph *g, vector<vector<demand>> *d,vector<overlay*> &ov,double con){
+			init();
 			x.clear();
 			G = g;
 			dem = d;
@@ -120,11 +129,14 @@ class evoluDiv{
 
 			// util
 			double util = G->CalculateMLU(&updatereq);
-			mlu += util;
+			mlu = util;
 			cout << " mlu: \t" << util <<"overlay0:"<< Overlay[0]->getCost() << " \toverlay1:" << Overlay[1]->getCost() << " \toverlay2:" << Overlay[2]->getCost()<<endl;
 			
-			double cost = Overlay[0]->getCost() + Overlay[1]->getCost() +Overlay[2]->getCost() ;
-			ability += util + this->consider/cost;
+			double sumdelay = Overlay[0]->getCost() + Overlay[1]->getCost() +Overlay[2]->getCost() ;
+			ability = util + sumdelay/this->consider;
+			//ability = util;
+			//ability = 1.0/sumdelay;
+			cost = sumdelay;
 
 			G->clearMark();
 		}
@@ -161,9 +173,9 @@ bool evoluCmp(evoluDiv a, evoluDiv b){
 
 class evoluPopu{
 	private:
-		static const int YEAR = 80;
-		static const int YEARCUL = 35;
-		static const int NOHERO = 25;
+		static const int YEAR = 60;
+		static const int YEARCUL = 30;
+		static const int NOHERO = 20;
 		vector<evoluDiv> popu;
 		CGraph *G;
 		vector<vector<demand>> *dem;
@@ -183,16 +195,25 @@ class evoluPopu{
 			herofile = fopen("outputFile//hero.csv","a");
 		}
 		evoluDiv evolution(){
-			int nohero=0;
+			double costlog = INF;
+			int index = 0;
+
+			int nohero = 0;
 			fprintf(herofile,"Start:\n ");
 			for(int i = 0; i < hero.x.size(); i++)
 				hero.x[i] = G->Link[i]->dist;
 			hero.calAbility();
-			fprintf(herofile, "%f\n", hero.ability);
+			fprintf(herofile, "%f,%f\n", hero.mlu,hero.cost);
 
-			for(int i = 0; i < popu.size(); i++)
+			for(int i = 0; i < popu.size(); i++){
 				popu[i].calAbility();
-			
+				if(popu[i].cost < costlog){
+					costlog = popu[i].cost;
+					index = i;
+				}
+			}
+			fprintf(herofile, "%f,%f\n", popu[index].mlu,costlog);
+
 			sort(popu.begin(), popu.end(), evoluCmp);
 			
 			for(int curYear = 1; curYear <= YEAR; curYear++){
@@ -218,12 +239,21 @@ class evoluPopu{
 						hero = sons[i];
 						getMore = 1;
 					}
+
+					if(sons[i].cost < costlog){
+						costlog = sons[i].cost;
+						index = i;
+					}
+					
 				}
+				fprintf(herofile, "Year %d:\n", curYear);
+				fprintf(herofile,"%f,%f\n",sons[index].mlu,costlog);
+
 				if(getMore){
-					fprintf(herofile, "Year %d: find hero \n", curYear);
-					fprintf(herofile,"%f\n", hero.ability);
+					;
 				}
-				else nohero++;
+				else 
+					nohero++;
 				if(nohero> NOHERO){
 					break;
 				}

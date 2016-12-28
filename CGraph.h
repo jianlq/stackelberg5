@@ -342,7 +342,7 @@ CGraph::CGraph(char* inputFile)
 		vert.insert(a);
 		vert.insert(b);
 		c = rand()%MAXWEIGHT+2;
-		CEdge *e=new CEdge(i,a,b,c,d+rand()%MINCAPACITY);
+		CEdge *e=new CEdge(i,a,b,c,d+10+rand()%MINCAPACITY);
 		Link.push_back(e);
 		adjL[a].push_back(e); //出度边
 		adjRL[b].push_back(e); //入度边
